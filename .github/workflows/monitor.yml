@@ -1,0 +1,56 @@
+name: CEN Monitor
+
+on:
+
+  workflow_dispatch:
+
+  schedule:
+    - cron: '0 */6 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+
+  monitor:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Install Playwright
+        run: |
+          playwright install chromium
+
+      - name: Run monitor
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TO_EMAILS: ${{ secrets.TO_EMAILS }}
+        run: |
+          python monitor.py
+
+      - name: Commit state file
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+          git add last_status.json
+
+          git diff --cached --quiet || \
+          git commit -m "update status snapshot"
+
+      - name: Push changes
+        run: |
+          git push
