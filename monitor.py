@@ -44,7 +44,7 @@ def get_current_statuses():
 
             try:
                 text = row.inner_text().strip()
-            except:
+            except Exception:
                 continue
 
             if not text:
@@ -83,7 +83,7 @@ def load_old_statuses():
     try:
         with open(STATUS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except:
+    except Exception:
         return {}
 
 
@@ -133,6 +133,15 @@ def send_email(changes):
         <p><b>New Status:</b> {new_status}</p>
         """
 
+    html += f"""
+    <hr>
+    <p>
+      <a href="{URL}">
+        Open TC114 page
+      </a>
+    </p>
+    """
+
     payload = {
         "from": "onboarding@resend.dev",
         "to": to_emails,
@@ -152,6 +161,8 @@ def send_email(changes):
     print("Email status code:", response.status_code)
     print("Email response:", response.text)
 
+    response.raise_for_status()
+
 
 def main():
     current_statuses = get_current_statuses()
@@ -165,11 +176,9 @@ def main():
         )
     )
 
-    if len(current_statuses) < 10:
-        print(
-            f"Only {len(current_statuses)} items found."
-        )
-        print("Abort update.")
+    # 仅在完全抓不到数据时终止
+    if len(current_statuses) == 0:
+        print("No standards found.")
         return
 
     old_statuses = load_old_statuses()
@@ -189,7 +198,7 @@ def main():
     )
 
     if not old_statuses:
-        print("First run.")
+        print("First run detected.")
 
         save_statuses(current_statuses)
 
@@ -210,7 +219,7 @@ def main():
         print("Status file updated.")
 
     else:
-        print("No changes.")
+        print("No changes detected.")
 
         save_statuses(current_statuses)
 
