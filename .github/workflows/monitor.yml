@@ -1,4 +1,4 @@
-name: Monitor CEN TC114
+name:CEN TC114 Monitor 
 
 on:
   schedule:
