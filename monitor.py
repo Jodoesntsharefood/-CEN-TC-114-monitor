@@ -10,112 +10,132 @@ STATUS_FILE = "last_status.json"
 
 
 def get_current_statuses():
+
     results = {}
 
     with sync_playwright() as p:
 
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True
+        )
 
-        page = browser.new_page()
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
+            )
+        )
+
+        page = context.new_page()
 
         page.goto(
             URL,
-            wait_until="networkidle",
+            wait_until="domcontentloaded",
             timeout=120000
         )
 
-        page.wait_for_timeout(10000)
+        page.wait_for_timeout(15000)
 
-        tables = page.locator("table")
+        print("Current URL:")
+        print(page.url)
 
-        table_count = tables.count()
+        print("Page Title:")
+        print(page.title())
 
-        print(f"Found tables: {table_count}")
+        page.screenshot(
+            path="debug.png",
+            full_page=True
+        )
 
-        found = False
+        with open(
+            "debug.html",
+            "w",
+            encoding="utf-8"
+        ) as f:
+            f.write(page.content())
 
-        for t in range(table_count):
+        try:
 
-            table = tables.nth(t)
+            page.wait_for_selector(
+                "#DASHBOARD_LISTTCWORKPROG",
+                timeout=30000
+            )
 
-            rows = table.locator("tr")
+        except Exception:
 
-            row_count = rows.count()
+            browser.close()
 
-            if row_count < 2:
+            raise Exception(
+                "Cannot find "
+                "#DASHBOARD_LISTTCWORKPROG"
+            )
+
+        rows = page.locator(
+            "#DASHBOARD_LISTTCWORKPROG tr"
+        )
+
+        row_count = rows.count()
+
+        print(
+            f"Rows found: {row_count}"
+        )
+
+        for i in range(1, row_count):
+
+            row = rows.nth(i)
+
+            cells = row.locator("td")
+
+            if cells.count() < 3:
                 continue
-
-            headers = [
-                x.strip()
-                for x in rows.nth(0).inner_text().split("\n")
-                if x.strip()
-            ]
 
             try:
 
-                ref_idx = next(
-                    i
-                    for i, h in enumerate(headers)
-                    if "reference" in h.lower()
+                reference = (
+                    cells.nth(0)
+                    .inner_text()
+                    .strip()
                 )
 
-                title_idx = next(
-                    i
-                    for i, h in enumerate(headers)
-                    if "title" in h.lower()
+                status = (
+                    cells.nth(1)
+                    .inner_text()
+                    .strip()
                 )
 
-                status_idx = next(
-                    i
-                    for i, h in enumerate(headers)
-                    if "status" in h.lower()
+                title = (
+                    cells.nth(2)
+                    .inner_text()
+                    .strip()
                 )
 
-            except StopIteration:
-                continue
-
-            print("Work programme table found")
-
-            found = True
-
-            for r in range(1, row_count):
-
-                row = rows.nth(r)
-
-                cols = [
-                    x.strip()
-                    for x in row.inner_text().split("\n")
-                    if x.strip()
-                ]
-
-                if len(cols) <= max(
-                    ref_idx,
-                    title_idx,
-                    status_idx
-                ):
-                    continue
-
-                reference = cols[ref_idx]
-                title = cols[title_idx]
-                status = cols[status_idx]
-
-                key = f"{reference} | {title}"
+                key = (
+                    f"{reference} | {title}"
+                )
 
                 results[key] = status
 
+            except Exception as e:
+
+                print(
+                    f"Skip row {i}: {e}"
+                )
+
         browser.close()
 
-        if not found:
-            raise Exception(
-                "Cannot locate Work Programme table"
-            )
+    print(
+        f"Collected {len(results)} projects"
+    )
 
     return results
 
 
 def load_old_statuses():
 
-    if not os.path.exists(STATUS_FILE):
+    if not os.path.exists(
+        STATUS_FILE
+    ):
         return {}
 
     with open(
@@ -146,9 +166,12 @@ def compare_statuses(old, new):
 
     changes = []
 
-    all_keys = set(old.keys()) | set(new.keys())
+    keys = (
+        set(old.keys())
+        | set(new.keys())
+    )
 
-    for key in all_keys:
+    for key in keys:
 
         old_status = old.get(key)
         new_status = new.get(key)
@@ -168,110 +191,90 @@ def compare_statuses(old, new):
 
 def send_email(changes):
 
-    resend_api_key = os.environ["RESEND_API_KEY"]
+    api_key = os.environ[
+        "RESEND_API_KEY"
+    ]
 
-    to_emails = (
+    recipients = (
         os.environ["TO_EMAILS"]
         .split(",")
     )
 
     html = """
-    <h2>CEN Work Programme Changes</h2>
+    <h2>
+    CEN Work Programme Change
+    </h2>
     """
 
-    for item, old_status, new_status in changes:
+    for key, old_s, new_s in changes:
 
         html += f"""
         <hr>
 
         <p>
-        <b>Standard:</b><br>
-        {item}
+        <b>{key}</b>
         </p>
 
         <p>
-        <b>Old Status:</b>
-        {old_status}
-        </p>
-
-        <p>
-        <b>New Status:</b>
-        {new_status}
+        {old_s}
+        →
+        {new_s}
         </p>
         """
 
-    html += f"""
-    <br>
-    <a href="{URL}">
-    Open Work Programme
-    </a>
-    """
-
-    payload = {
-        "from":
-            "CEN Monitor <onboarding@resend.dev>",
-
-        "to":
-            to_emails,
-
-        "subject":
-            "[CEN Alert] Status Changed",
-
-        "html":
-            html,
-    }
-
-    response = requests.post(
+    requests.post(
         "https://api.resend.com/emails",
         headers={
             "Authorization":
-                f"Bearer {resend_api_key}",
+                f"Bearer {api_key}",
             "Content-Type":
-                "application/json",
+                "application/json"
         },
-        json=payload,
+        json={
+            "from":
+                "CEN Monitor <onboarding@resend.dev>",
+            "to":
+                recipients,
+            "subject":
+                "[CEN Alert] Status Change",
+            "html":
+                html
+        }
     )
-
-    print(response.status_code)
-    print(response.text)
 
 
 def main():
 
-    current_statuses = get_current_statuses()
+    current = get_current_statuses()
 
-    print(
-        json.dumps(
-            current_statuses,
-            indent=2,
-            ensure_ascii=False
-        )
-    )
+    old = load_old_statuses()
 
-    old_statuses = load_old_statuses()
-
-    changes = compare_statuses(
-        old_statuses,
-        current_statuses
-    )
-
-    if not old_statuses:
+    if not old:
 
         print(
-            "First run. Save baseline."
+            "First run. "
+            "Creating baseline."
         )
 
-        save_statuses(current_statuses)
+        save_statuses(current)
 
         return
 
+    changes = compare_statuses(
+        old,
+        current
+    )
+
     if changes:
 
-        print("Changes detected")
+        print(
+            f"Changes found: "
+            f"{len(changes)}"
+        )
 
         send_email(changes)
 
-        save_statuses(current_statuses)
+        save_statuses(current)
 
     else:
 
