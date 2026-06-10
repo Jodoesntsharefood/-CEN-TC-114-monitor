@@ -8,227 +8,205 @@ URL = "https://standards.cencenelec.eu/ords/f?p=205:22:::::FSP_ORG_ID,FSP_LANG_I
 STATUS_FILE = "last_status.json"
 
 STATUS_CANDIDATES = [
-"Preliminary",
-"Under Drafting",
-"Under Approval",
-"Under Enquiry",
-"Published",
-"Withdrawn",
+    "Preliminary",
+    "Under Drafting",
+    "Under Approval",
+    "Under Enquiry",
+    "Published",
+    "Withdrawn",
 ]
 
+
 def get_current_statuses():
-results = {}
+    results = {}
 
-```
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
 
-    page = browser.new_page()
+        page = browser.new_page()
 
-    page.goto(
-        URL,
-        wait_until="networkidle",
-        timeout=120000
-    )
+        page.goto(
+            URL,
+            wait_until="networkidle",
+            timeout=120000
+        )
 
-    page.wait_for_timeout(8000)
+        page.wait_for_timeout(8000)
 
-    rows = page.locator("table tr")
+        rows = page.locator("table tr")
+        count = rows.count()
 
-    count = rows.count()
+        print(f"Found rows: {count}")
 
-    print(f"Found rows: {count}")
+        for i in range(count):
+            row = rows.nth(i)
 
-    for i in range(count):
-        row = rows.nth(i)
+            try:
+                text = row.inner_text().strip()
+            except Exception:
+                continue
 
-        try:
-            text = row.inner_text().strip()
-        except Exception:
-            continue
+            if not text:
+                continue
 
-        if not text:
-            continue
+            columns = [c.strip() for c in text.split("\n") if c.strip()]
 
-        columns = [
-            c.strip()
-            for c in text.split("\n")
-            if c.strip()
-        ]
+            if len(columns) < 2:
+                continue
 
-        if len(columns) < 2:
-            continue
+            work_item = columns[0]
 
-        work_item = columns[0]
+            detected_status = None
 
-        detected_status = None
+            for col in columns:
+                for status in STATUS_CANDIDATES:
+                    if status.lower() in col.lower():
+                        detected_status = status
+                        break
 
-        for col in columns:
-            for status in STATUS_CANDIDATES:
-                if status.lower() in col.lower():
-                    detected_status = status
+                if detected_status:
                     break
 
             if detected_status:
-                break
+                results[work_item] = detected_status
 
-        if detected_status:
-            results[work_item] = detected_status
+        browser.close()
 
-    browser.close()
+    return results
 
-return results
-```
 
 def load_old_statuses():
-if not os.path.exists(STATUS_FILE):
-return {}
+    if not os.path.exists(STATUS_FILE):
+        return {}
 
-```
-try:
-    with open(
-        STATUS_FILE,
-        "r",
-        encoding="utf-8"
-    ) as f:
-        return json.load(f)
-except Exception:
-    return {}
-```
+    try:
+        with open(STATUS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
 
 def save_statuses(statuses):
-with open(
-STATUS_FILE,
-"w",
-encoding="utf-8"
-) as f:
-json.dump(
-statuses,
-f,
-indent=2,
-ensure_ascii=False
-)
-
-def compare_statuses(old, new):
-changes = []
-
-```
-all_keys = set(old.keys()) | set(new.keys())
-
-for key in sorted(all_keys):
-    old_status = old.get(key)
-    new_status = new.get(key)
-
-    if old_status != new_status:
-        changes.append(
-            (
-                key,
-                old_status,
-                new_status
-            )
+    with open(STATUS_FILE, "w", encoding="utf-8") as f:
+        json.dump(
+            statuses,
+            f,
+            indent=2,
+            ensure_ascii=False
         )
 
-return changes
-```
+
+def compare_statuses(old, new):
+    changes = []
+
+    all_keys = set(old.keys()) | set(new.keys())
+
+    for key in sorted(all_keys):
+        old_status = old.get(key)
+        new_status = new.get(key)
+
+        if old_status != new_status:
+            changes.append(
+                (
+                    key,
+                    old_status,
+                    new_status
+                )
+            )
+
+    return changes
+
 
 def send_email(changes):
-resend_api_key = os.environ["RESEND_API_KEY"]
+    resend_api_key = os.environ["RESEND_API_KEY"]
 
-```
-to_emails = [
-    email.strip()
-    for email in os.environ["TO_EMAILS"].split(",")
-    if email.strip()
-]
+    to_emails = [
+        email.strip()
+        for email in os.environ["TO_EMAILS"].split(",")
+        if email.strip()
+    ]
 
-html = """
-<h2>CEN/TC 114 Status Changes</h2>
-"""
+    html = "<h2>CEN/TC 114 Status Changes</h2>"
 
-for item, old_status, new_status in changes:
+    for item, old_status, new_status in changes:
+        html += f"""
+        <hr>
+        <p><b>Work Item:</b> {item}</p>
+        <p><b>Old Status:</b> {old_status}</p>
+        <p><b>New Status:</b> {new_status}</p>
+        """
+
     html += f"""
     <hr>
-    <p><b>Work Item:</b> {item}</p>
-    <p><b>Old Status:</b> {old_status}</p>
-    <p><b>New Status:</b> {new_status}</p>
+    <p>
+        <a href="{URL}">
+            Open TC114 page
+        </a>
+    </p>
     """
 
-html += f"""
-<hr>
-<p>
-  <a href="{URL}">
-    Open TC114 page
-  </a>
-</p>
-"""
+    payload = {
+        "from": "onboarding@resend.dev",
+        "to": to_emails,
+        "subject": "[CEN/TC114] Status Changed",
+        "html": html
+    }
 
-payload = {
-    "from": "onboarding@resend.dev",
-    "to": to_emails,
-    "subject": "[CEN/TC114] Status Changed",
-    "html": html
-}
+    headers = {
+        "Authorization": f"Bearer {resend_api_key}",
+        "Content-Type": "application/json"
+    }
 
-headers = {
-    "Authorization": f"Bearer {resend_api_key}",
-    "Content-Type": "application/json"
-}
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers=headers,
+        json=payload
+    )
 
-response = requests.post(
-    "https://api.resend.com/emails",
-    headers=headers,
-    json=payload
-)
+    print("Email status code:", response.status_code)
+    print("Email response:", response.text)
 
-print("Email status code:", response.status_code)
-print("Email response:", response.text)
+    response.raise_for_status()
 
-response.raise_for_status()
-```
 
 def main():
-current_statuses = get_current_statuses()
+    current_statuses = get_current_statuses()
 
-```
-print("Current statuses:")
-print(
-    json.dumps(
-        current_statuses,
-        indent=2,
-        ensure_ascii=False
-    )
-)
+    print("Current statuses:")
+    print(json.dumps(current_statuses, indent=2, ensure_ascii=False))
 
-old_statuses = load_old_statuses()
+    if len(current_statuses) < 10:
+        print(
+            f"Only {len(current_statuses)} rows found. "
+            "Likely website loading issue. Abort."
+        )
+        return
 
-changes = compare_statuses(
-    old_statuses,
-    current_statuses
-)
+    old_statuses = load_old_statuses()
 
-if not old_statuses:
-    print(
-        "First run detected. "
-        "Saving baseline only."
+    changes = compare_statuses(
+        old_statuses,
+        current_statuses
     )
 
-    save_statuses(current_statuses)
+    if not old_statuses:
+        print("First run detected. Saving baseline only.")
+        save_statuses(current_statuses)
+        return
 
-    return
+    if changes:
+        print("Changes detected:")
 
-if changes:
-    print("Changes detected:")
+        for change in changes:
+            print(change)
 
-    for change in changes:
-        print(change)
+        send_email(changes)
 
-    send_email(changes)
+        save_statuses(current_statuses)
 
-    save_statuses(current_statuses)
+    else:
+        print("No changes detected.")
 
-else:
-    print("No changes detected.")
-```
 
-if **name** == "**main**":
-main()
+if __name__ == "__main__":
+    main()
