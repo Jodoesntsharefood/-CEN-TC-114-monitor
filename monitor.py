@@ -55,7 +55,20 @@ def get_current_statuses():
             if len(cols) < 2:
                 continue
 
-            work_item = cols[0]
+            project_line = cols[0]
+
+            project = project_line
+            wi = project_line
+            name = ""
+
+            # 提取 WI
+            if "(WI=" in project_line:
+                wi = project_line.split("(WI=")[1].split(")")[0].strip()
+                project = project_line.split("(WI=")[0].strip()
+
+            # 第二行通常就是名称
+            if len(cols) >= 2:
+                name = cols[1]
 
             detected_status = None
 
@@ -69,7 +82,11 @@ def get_current_statuses():
                     break
 
             if detected_status:
-                results[work_item] = detected_status
+                results[wi] = {
+                    "project": project,
+                    "name": name,
+                    "status": detected_status
+                }
 
         browser.close()
 
@@ -98,18 +115,30 @@ def save_statuses(statuses):
 
 
 def compare_statuses(old, new):
+
     changes = []
 
     all_keys = set(old.keys()) | set(new.keys())
 
     for key in sorted(all_keys):
-        old_status = old.get(key)
-        new_status = new.get(key)
+
+        old_item = old.get(key)
+        new_item = new.get(key)
+
+        old_status = old_item["status"] if old_item else None
+        new_status = new_item["status"] if new_item else None
 
         if old_status != new_status:
-            changes.append(
-                (key, old_status, new_status)
-            )
+
+            item = new_item if new_item else old_item
+
+            changes.append({
+                "wi": key,
+                "project": item.get("project", ""),
+                "name": item.get("name", ""),
+                "old_status": old_status,
+                "new_status": new_status
+            })
 
     return changes
 
@@ -125,20 +154,50 @@ def send_email(changes):
 
     html = "<h2>CEN/TC114 Status Changes</h2>"
 
-    for item, old_status, new_status in changes:
+    for change in changes:
         html += f"""
         <hr>
-        <p><b>Work Item:</b> {item}</p>
-        <p><b>Old Status:</b> {old_status}</p>
-        <p><b>New Status:</b> {new_status}</p>
+
+        <table style="border-collapse:collapse;">
+
+            <tr>
+                <td style="padding:4px 10px;"><b>WI</b></td>
+                <td>{change["wi"]}</td>
+            </tr>
+
+            <tr>
+                <td style="padding:4px 10px;"><b>Project</b></td>
+                <td>{change["project"]}</td>
+            </tr>
+
+            <tr>
+                <td style="padding:4px 10px;"><b>Name</b></td>
+                <td>{change["name"]}</td>
+            </tr>
+
+            <tr>
+                <td style="padding:4px 10px;"><b>Old Status</b></td>
+                <td>{change["old_status"]}</td>
+            </tr>
+
+            <tr>
+                <td style="padding:4px 10px;"><b>New Status</b></td>
+                <td>
+                    <span style="color:red;font-weight:bold;">
+                        {change["new_status"]}
+                    </span>
+                </td>
+            </tr>
+
+        </table>
         """
 
     html += f"""
     <hr>
     <p>
-      <a href="{URL}">
-        Open TC114 page
-      </a>
+        <a href="{URL}">
+            Open TC114 Page
+        </a>
     </p>
     """
 
@@ -162,7 +221,6 @@ def send_email(changes):
     print("Email response:", response.text)
 
     response.raise_for_status()
-
 
 def main():
     current_statuses = get_current_statuses()
