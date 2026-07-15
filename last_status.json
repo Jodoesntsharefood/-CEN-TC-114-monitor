@@ -1,1 +1,37 @@
-{}
+{
+  "00114191": {
+    "project": "prEN ISO 11161",
+    "name": "Safety of machinery - Integration of machinery into a system - Basic requirements (ISO/DIS 11161:2024)",
+    "status": "Under Approval"
+  },
+  "00114190": {
+    "project": "prEN ISO 12100",
+    "name": "Safety of machinery - General principles for design - Risk assessment and risk reduction (ISO/DIS 12100:2025)",
+    "status": "Under Approval"
+  },
+  "00114186": {
+    "project": "prEN ISO 12895",
+    "name": "Safety of machinery - Identification of whole body access and prevention of associated risk(s) (ISO/DIS 12895:2025)",
+    "status": "Under Approval"
+  },
+  "00114187": {
+    "project": "prEN ISO 13849-2",
+    "name": "Safety of machinery - Safety-related parts of control systems - Part 2: Validation (ISO/DIS 13849-2:2026)",
+    "status": "Under Approval"
+  },
+  "00114188": {
+    "project": "prEN ISO 14122 rev",
+    "name": "Safety of machinery — Permanent means of access to machinery — Part 1: Choice of fixed means of access between two levels",
+    "status": "Under Drafting"
+  },
+  "00114189": {
+    "project": "prEN ISO 14159",
+    "name": "Safety of machinery - General requirements for hygienic design (ISO/DIS 14159:2026)",
+    "status": "Under Enquiry"
+  },
+  "00114192": {
+    "project": "prEN ISO 20607",
+    "name": "Safety of machinery - Instruction handbook - General drafting principles (ISO/DIS 20607:2025)",
+    "status": "Under Approval"
+  }
+}
