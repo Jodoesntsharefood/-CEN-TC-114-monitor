@@ -19,9 +19,19 @@
     "name": "Safety of machinery - Safety-related parts of control systems - Part 2: Validation (ISO/DIS 13849-2:2026)",
     "status": "Under Approval"
   },
+  "00114195": {
+    "project": "prEN ISO 13850 rev",
+    "name": "Safety of machinery — Emergency stop function — Principles for design",
+    "status": "Under Drafting"
+  },
   "00114194": {
     "project": "prEN ISO 13857 rev",
     "name": "Safety of machinery — Distances associated with the position of protective structures to prevent reaching by upper and lower limbs",
+    "status": "Under Drafting"
+  },
+  "00114196": {
+    "project": "prEN ISO 14120 rev",
+    "name": "Safety of machinery — Guards — General requirements for the design and construction of fixed and movable guards",
     "status": "Under Drafting"
   },
   "00114188": {
